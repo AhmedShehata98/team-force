@@ -168,7 +168,10 @@ export const loginUser = async (req: Request, res: Response) => {
     const token = generateToken(payload);
 
     res
-      .cookie("token", token)
+      .cookie("token", token, {
+        secure: true,
+        httpOnly: true,
+      })
       .status(200)
       .json(
         responseAdapter({
@@ -182,6 +185,30 @@ export const loginUser = async (req: Request, res: Response) => {
     res.status(400).json(
       responseAdapter({
         data: [],
+        isError: true,
+        error: RESPONSE_ERROR.BAD_REQUEST,
+      })
+    );
+  }
+};
+
+export const logout = async (req: Request, res: Response) => {
+  try {
+    res
+      .clearCookie("token")
+      .status(200)
+      .json(
+        responseAdapter({
+          data: true,
+          isError: false,
+          error: null,
+        })
+      );
+  } catch (error) {
+    console.error("🛑 Error logging out user", error);
+    res.status(400).json(
+      responseAdapter({
+        data: false,
         isError: true,
         error: RESPONSE_ERROR.BAD_REQUEST,
       })
@@ -411,11 +438,22 @@ export const deleteUser = async (req: Request, res: Response) => {
 };
 
 export const checkIsValidToken = async (req: Request, res: Response) => {
-  const payload = req.headers.authorization;
-
-  const [prefix, token] = payload?.split(" ") || [];
+  const cookie = req.cookies;
 
   try {
+    const token = cookie?.token;
+
+    if (!token) {
+      res.status(401).json(
+        responseAdapter({
+          data: false,
+          isError: true,
+          error: RESPONSE_ERROR.UNAUTHORIZED,
+          errorDetails: "No token provided expect string but got undefined",
+        })
+      );
+      return;
+    }
     const user = verifyToken(token) as TokenPayloadType | null;
 
     if (!user) {
@@ -448,7 +486,7 @@ export const checkIsValidToken = async (req: Request, res: Response) => {
       })
     );
   } catch (error: any) {
-    console.error("🛑 Error deleting user", error);
+    console.error("🛑 Error checking user token", error);
     res.status(400).json(
       responseAdapter({
         data: [],
