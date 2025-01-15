@@ -9,6 +9,7 @@ import {
   createUser,
   checkIsValidToken,
   getUserDetails,
+  registerInvitedUser,
 } from "../controllers/users.controller";
 import { withAuthentication } from "../middleware/with-auth";
 
@@ -17,6 +18,7 @@ const usersRoute = Router();
 usersRoute.get("/info", withAuthentication, getMeInfo);
 usersRoute.post("/login", loginUser);
 usersRoute.post("/register", register);
+usersRoute.post("/register-invite-user", registerInvitedUser);
 usersRoute.get("/check-token", checkIsValidToken);
 usersRoute.post("/", withAuthentication, createUser);
 usersRoute.get("/company-users", withAuthentication, getUsersByCompanyId);

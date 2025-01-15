@@ -317,6 +317,75 @@ export const register = async (req: Request, res: Response) => {
   }
 };
 
+export const registerInvitedUser = async (req: Request, res: Response) => {
+  const userData = req.body as Omit<
+    User,
+    "id" | "companyId" | "joinedAt" | "role" | "email" | "company"
+  >;
+
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      res.status(404).json(
+        responseAdapter({
+          data: [],
+          isError: true,
+          error: RESPONSE_ERROR.NOT_FOUND,
+          errorDetails: "Token is required to register an invited user",
+        })
+      );
+      return;
+    }
+
+    const hashedPassword = await hashPassword(userData.password);
+    const invitedUser = await prisma.invitation.findUnique({
+      where: { token: token as string },
+    });
+
+    if (!invitedUser) {
+      res.status(404).json(
+        responseAdapter({
+          data: [],
+          isError: true,
+          error: RESPONSE_ERROR.NOT_FOUND,
+          errorDetails: "Invitation not found",
+        })
+      );
+      return;
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        name: userData.name,
+        role: invitedUser.role,
+        skills: userData.skills,
+        email: invitedUser.email,
+        password: hashedPassword,
+        companyId: invitedUser.companyId,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        skills: true,
+      },
+    });
+
+    const payload: TokenPayloadType = {
+      userId: user.id,
+      companyId: invitedUser.companyId,
+    };
+    const jwtToken = generateToken(payload);
+
+    res
+      .cookie("token", jwtToken, { secure: true, httpOnly: true })
+      .status(201)
+      .json(responseAdapter({ data: user }));
+  } catch (error) {}
+};
+
 export const createUser = async (req: Request, res: Response) => {
   const {
     user: { companyId },

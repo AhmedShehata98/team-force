@@ -1,6 +1,6 @@
 import { RESPONSE_ERROR } from "../types/response";
 import { responseAdapter } from "../utils/adaptors/response";
-import { PrismaClient } from "@prisma/client";
+import { InvitationStatus, PrismaClient } from "@prisma/client";
 import crypto from "crypto";
 import { Request, Response } from "express";
 import { TokenPayloadType } from "../types/users";
@@ -29,13 +29,6 @@ export const sendInvitation = async (req: Request, res: Response) => {
       );
     }
 
-    console.log({
-      ...data,
-      companyId: user.companyId,
-      expiresAt: expirationDate,
-      token: invitationToken,
-    });
-
     const invite = await prisma.invitation.create({
       data: {
         ...data,
@@ -49,7 +42,6 @@ export const sendInvitation = async (req: Request, res: Response) => {
         company: true,
       },
     });
-    console.log("invite: ", invite);
 
     await sendMail({
       to: data.email,
@@ -66,6 +58,74 @@ export const sendInvitation = async (req: Request, res: Response) => {
     );
   } catch (error: any) {
     console.error("🛑 Error in sendInvitationMail", error);
+    res.status(400).json(
+      responseAdapter({
+        data: [],
+        error: RESPONSE_ERROR.BAD_REQUEST,
+        errorDetails: error,
+        isError: true,
+      })
+    );
+  }
+};
+
+export const acceptInvitation = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      res.status(404).json(
+        responseAdapter({
+          data: [],
+          error: RESPONSE_ERROR.NOT_FOUND,
+          errorDetails: "please provide Invitation token",
+          isError: true,
+        })
+      );
+      return;
+    }
+
+    const invitation = await prisma.invitation.findFirst({
+      where: {
+        token,
+        expiresAt: {
+          lte: new Date(),
+        },
+      },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        company: true,
+      },
+    });
+
+    if (!invitation) {
+      res.status(404).json(
+        responseAdapter({
+          data: [],
+          error: RESPONSE_ERROR.NOT_FOUND,
+          errorDetails: "Invitation not found or expired",
+          isError: true,
+        })
+      );
+      return;
+    }
+
+    await prisma.invitation.update({
+      where: { id: invitation.id },
+      data: {
+        status: InvitationStatus.ACCEPTED,
+      },
+    });
+
+    res.status(200).json(
+      responseAdapter({
+        data: invitation,
+      })
+    );
+  } catch (error: any) {
+    console.error("🛑 Error in acceptInvitation", error);
     res.status(400).json(
       responseAdapter({
         data: [],
